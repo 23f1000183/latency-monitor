@@ -1,9 +1,8 @@
-
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from statistics import mean
+from pathlib import Path
 import json
-import os
+import math
 
 app = FastAPI()
 
@@ -14,8 +13,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load telemetry data from a bundled JSON file.
-DATA_PATH = os.path.join(os.path.dirname(__file__), "telemetry.json")
+DATA_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "q-vercel-latency.json"
+)
+
+
+def percentile_95(values):
+    values = sorted(values)
+    position = 0.95 * (len(values) - 1)
+    lower = math.floor(position)
+    upper = math.ceil(position)
+
+    if lower == upper:
+        return values[lower]
+
+    return (
+        values[lower] * (upper - position)
+        + values[upper] * (position - lower)
+    )
+
 
 @app.post("/api/latency")
 async def latency_metrics(request: Request):
@@ -29,10 +46,20 @@ async def latency_metrics(request: Request):
     results = {}
 
     for region in regions:
-        records = data.get(region, [])
+        records = [
+            row for row in data
+            if row["region"] == region
+        ]
 
-        latencies = [float(r["latency_ms"]) for r in records]
-        uptimes = [float(r["uptime"]) for r in records]
+        latencies = [
+            float(row["latency_ms"])
+            for row in records
+        ]
+
+        uptimes = [
+            float(row["uptime_pct"])
+            for row in records
+        ]
 
         if not records:
             results[region] = {
@@ -43,14 +70,13 @@ async def latency_metrics(request: Request):
             }
             continue
 
-        sorted_latencies = sorted(latencies)
-        p95_index = max(0, __import__("math").ceil(0.95 * len(sorted_latencies)) - 1)
-
         results[region] = {
-            "avg_latency": mean(latencies),
-            "p95_latency": sorted_latencies[p95_index],
-            "avg_uptime": mean(uptimes),
-            "breaches": sum(x > threshold for x in latencies),
+            "avg_latency": sum(latencies) / len(latencies),
+            "p95_latency": percentile_95(latencies),
+            "avg_uptime": sum(uptimes) / len(uptimes),
+            "breaches": sum(
+                latency > threshold for latency in latencies
+            ),
         }
 
     return results
