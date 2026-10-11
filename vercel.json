@@ -6,12 +6,6 @@
       "use": "@vercel/python"
     }
   ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "api/index.py"
-    }
-  ],
   "headers": [
     {
       "source": "/api/(.*)",
@@ -26,7 +20,7 @@
         },
         {
           "key": "Access-Control-Allow-Headers",
-          "value": "*"
+          "value": "Content-Type"
         }
       ]
     }
