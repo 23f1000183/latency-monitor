@@ -57,4 +57,4 @@ def analyze(q: Query):
             "avg_uptime": float(up.mean()),
             "breaches": int((lat > q.threshold_ms).sum()),
         }
-    return JSONResponse(out, headers=CORS)
+    return JSONResponse({"regions": out}, headers=CORS)
